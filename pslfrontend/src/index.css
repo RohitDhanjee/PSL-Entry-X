@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+/* Smooth scrolling for better navigation experience */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Prevent layout shift during transitions */
+body {
+  overflow-x: hidden;
+}
+
+/* Smooth transitions for all interactive elements */
+* {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}

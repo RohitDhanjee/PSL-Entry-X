@@ -1,0 +1,3140 @@
+import asyncio 
+import time    
+from web3 import Web3
+from typing import Optional, Dict, List, Any
+import json
+import logging
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+CONTRACT_ABI = [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_platformWallet",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": False,
+      "inputs": [
+        {
+          "indexed": True,
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "indexed": True,
+          "internalType": "address",
+          "name": "approved",
+          "type": "address"
+        },
+        {
+          "indexed": True,
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "Approval",
+      "type": "event"
+    },
+    {
+      "anonymous": False,
+      "inputs": [
+        {
+          "indexed": True,
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "indexed": True,
+          "internalType": "address",
+          "name": "operator",
+          "type": "address"
+        },
+        {
+          "indexed": False,
+          "internalType": "bool",
+          "name": "approved",
+          "type": "bool"
+        }
+      ],
+      "name": "ApprovalForAll",
+      "type": "event"
+    },
+    {
+      "anonymous": False,
+      "inputs": [
+        {
+          "indexed": True,
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "indexed": True,
+          "internalType": "address",
+          "name": "creator",
+          "type": "address"
+        },
+        {
+          "indexed": False,
+          "internalType": "string",
+          "name": "metadataURI",
+          "type": "string"
+        },
+        {
+          "indexed": False,
+          "internalType": "uint256",
+          "name": "royaltyPercentage",
+          "type": "uint256"
+        }
+      ],
+      "name": "ArtworkRegistered",
+      "type": "event"
+    },
+    {
+      "anonymous": False,
+      "inputs": [
+        {
+          "indexed": False,
+          "internalType": "uint256",
+          "name": "_fromTokenId",
+          "type": "uint256"
+        },
+        {
+          "indexed": False,
+          "internalType": "uint256",
+          "name": "_toTokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "BatchMetadataUpdate",
+      "type": "event"
+    },
+    {
+      "anonymous": False,
+      "inputs": [
+        {
+          "indexed": True,
+          "internalType": "uint256",
+          "name": "licenseId",
+          "type": "uint256"
+        },
+        {
+          "indexed": True,
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "indexed": True,
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "indexed": False,
+          "internalType": "address",
+          "name": "buyer",
+          "type": "address"
+        },
+        {
+          "indexed": False,
+          "internalType": "enum ArtDRM.LicenseType",
+          "name": "licenseType",
+          "type": "uint8"
+        },
+        {
+          "indexed": False,
+          "internalType": "uint256",
+          "name": "actualAmount",
+          "type": "uint256"
+        },
+        {
+          "indexed": False,
+          "internalType": "uint256",
+          "name": "licenseFee",
+          "type": "uint256"
+        },
+        {
+          "indexed": False,
+          "internalType": "uint256",
+          "name": "totalAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "LicensePurchased",
+      "type": "event"
+    },
+    {
+      "anonymous": False,
+      "inputs": [
+        {
+          "indexed": True,
+          "internalType": "uint256",
+          "name": "licenseId",
+          "type": "uint256"
+        },
+        {
+          "indexed": True,
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "indexed": True,
+          "internalType": "address",
+          "name": "buyer",
+          "type": "address"
+        }
+      ],
+      "name": "LicenseRevoked",
+      "type": "event"
+    },
+    {
+      "anonymous": False,
+      "inputs": [
+        {
+          "indexed": False,
+          "internalType": "uint256",
+          "name": "_tokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "MetadataUpdate",
+      "type": "event"
+    },
+    {
+      "anonymous": False,
+      "inputs": [
+        {
+          "indexed": True,
+          "internalType": "address",
+          "name": "previousOwner",
+          "type": "address"
+        },
+        {
+          "indexed": True,
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "OwnershipTransferred",
+      "type": "event"
+    },
+    {
+      "anonymous": False,
+      "inputs": [
+        {
+          "indexed": True,
+          "internalType": "address",
+          "name": "oldWallet",
+          "type": "address"
+        },
+        {
+          "indexed": True,
+          "internalType": "address",
+          "name": "newWallet",
+          "type": "address"
+        }
+      ],
+      "name": "PlatformWalletUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": False,
+      "inputs": [
+        {
+          "indexed": True,
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "indexed": True,
+          "internalType": "address",
+          "name": "creator",
+          "type": "address"
+        },
+        {
+          "indexed": False,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "RoyaltyPaid",
+      "type": "event"
+    },
+    {
+      "anonymous": False,
+      "inputs": [
+        {
+          "indexed": True,
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "indexed": True,
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "indexed": True,
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "Transfer",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_ROYALTY",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "PLATFORM_FEE_BPS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "approve",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "artworks",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "creator",
+          "type": "address"
+        },
+        {
+          "internalType": "string",
+          "name": "metadataURI",
+          "type": "string"
+        },
+        {
+          "internalType": "uint256",
+          "name": "royaltyPercentage",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bool",
+          "name": "isLicensed",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        }
+      ],
+      "name": "balanceOf",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "buyerLicenses",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "creatorArtworks",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getApproved",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getArtworkInfo",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "creator",
+          "type": "address"
+        },
+        {
+          "internalType": "string",
+          "name": "metadataURI",
+          "type": "string"
+        },
+        {
+          "internalType": "uint256",
+          "name": "royaltyPercentage",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bool",
+          "name": "isLicensed",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "buyer",
+          "type": "address"
+        }
+      ],
+      "name": "getBuyerLicenses",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "licenseId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "tokenId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "address",
+              "name": "owner",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "buyer",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "actualAmount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "licenseFee",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalAmount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "purchaseTime",
+              "type": "uint256"
+            },
+            {
+              "internalType": "enum ArtDRM.LicenseType",
+              "name": "licenseType",
+              "type": "uint8"
+            },
+            {
+              "internalType": "bool",
+              "name": "isActive",
+              "type": "bool"
+            }
+          ],
+          "internalType": "struct ArtDRM.License[]",
+          "name": "",
+          "type": "tuple[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "creator",
+          "type": "address"
+        }
+      ],
+      "name": "getCreatorArtworks",
+      "outputs": [
+        {
+          "internalType": "uint256[]",
+          "name": "",
+          "type": "uint256[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getCurrentLicenseId",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getCurrentTokenId",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "licenseId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getLicenseInfo",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "buyer",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "actualAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "licenseFee",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "totalAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "purchaseTime",
+          "type": "uint256"
+        },
+        {
+          "internalType": "enum ArtDRM.LicenseType",
+          "name": "licenseType",
+          "type": "uint8"
+        },
+        {
+          "internalType": "bool",
+          "name": "isActive",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum ArtDRM.LicenseType",
+          "name": "licenseType",
+          "type": "uint8"
+        }
+      ],
+      "name": "getLicenseTypeString",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getTokenLicenses",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "licenseId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "tokenId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "address",
+              "name": "owner",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "buyer",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "actualAmount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "licenseFee",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalAmount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "purchaseTime",
+              "type": "uint256"
+            },
+            {
+              "internalType": "enum ArtDRM.LicenseType",
+              "name": "licenseType",
+              "type": "uint8"
+            },
+            {
+              "internalType": "bool",
+              "name": "isActive",
+              "type": "bool"
+            }
+          ],
+          "internalType": "struct ArtDRM.License[]",
+          "name": "",
+          "type": "tuple[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "salePrice",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "buyerPlatformFeeWei",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "sellerPlatformFeeWei",
+          "type": "uint256"
+        }
+      ],
+      "name": "handleSale",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "buyer",
+          "type": "address"
+        }
+      ],
+      "name": "hasValidLicense",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "operator",
+          "type": "address"
+        }
+      ],
+      "name": "isApprovedForAll",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "licenses",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "licenseId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "buyer",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "actualAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "licenseFee",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "totalAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "purchaseTime",
+          "type": "uint256"
+        },
+        {
+          "internalType": "enum ArtDRM.LicenseType",
+          "name": "licenseType",
+          "type": "uint8"
+        },
+        {
+          "internalType": "bool",
+          "name": "isActive",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "name",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "ownerOf",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "platformWallet",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "ownerWallet",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "buyerWallet",
+          "type": "address"
+        },
+        {
+          "internalType": "enum ArtDRM.LicenseType",
+          "name": "licenseType",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint256",
+          "name": "actualAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "licenseFee",
+          "type": "uint256"
+        }
+      ],
+      "name": "purchaseLicense",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "enum ArtDRM.LicenseType",
+          "name": "licenseType",
+          "type": "uint8"
+        }
+      ],
+      "name": "purchaseLicenseSimple",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "metadataURI",
+          "type": "string"
+        },
+        {
+          "internalType": "uint256",
+          "name": "royaltyPercentage",
+          "type": "uint256"
+        },
+        {"internalType": "uint256", 
+        "name": "registrationFeeWei", 
+        "type": "uint256"} 
+      ],
+      "name": "registerArtwork",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "renounceOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+{
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "licenseId",
+          "type": "uint256"
+        }
+      ],
+      "name": "revokeLicense",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "licensee",
+          "type": "address"
+        }
+      ],
+      "name": "revokeLicense",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "salePrice",
+          "type": "uint256"
+        }
+      ],
+      "name": "royaltyInfo",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "receiver",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "royaltyAmount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "safeTransferFrom",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes",
+          "name": "data",
+          "type": "bytes"
+        }
+      ],
+      "name": "safeTransferFrom",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "operator",
+          "type": "address"
+        },
+        {
+          "internalType": "bool",
+          "name": "approved",
+          "type": "bool"
+        }
+      ],
+      "name": "setApprovalForAll",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes4",
+          "name": "interfaceId",
+          "type": "bytes4"
+        }
+      ],
+      "name": "supportsInterface",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "symbol",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "tokenLicenses",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "licenseId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "buyer",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "actualAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "licenseFee",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "totalAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "purchaseTime",
+          "type": "uint256"
+        },
+        {
+          "internalType": "enum ArtDRM.LicenseType",
+          "name": "licenseType",
+          "type": "uint8"
+        },
+        {
+          "internalType": "bool",
+          "name": "isActive",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "tokenURI",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "transferFrom",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "transferOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newWallet",
+          "type": "address"
+        }
+      ],
+      "name": "updatePlatformWallet",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "withdrawBalance",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+      {
+  "inputs": [
+    {
+      "internalType": "uint256",
+      "name": "tokenId",
+      "type": "uint256"
+    },
+    {
+      "internalType": "uint256",
+      "name": "durationDays",
+      "type": "uint256"
+    },
+    {
+      "internalType": "string",
+      "name": "termsHash",
+      "type": "string"
+    },
+    {
+      "internalType": "enum XDRM.LicenseType",
+      "name": "licenseType",
+      "type": "uint8"
+    },
+    {
+      "internalType": "uint256",
+      "name": "licenseFeeWei",
+      "type": "uint256"
+    },
+    {
+      "internalType": "uint256",
+      "name": "buyerPlatformFeeWei",
+      "type": "uint256"
+    },
+    {
+      "internalType": "uint256",
+      "name": "sellerPlatformFeeWei",
+      "type": "uint256"
+    }
+  ],
+  "name": "purchaseLicense",
+  "outputs": [
+    {
+      "internalType": "uint256",
+      "name": "",
+      "type": "uint256"
+    }
+  ],
+  "stateMutability": "payable",
+  "type": "function"
+},
+{
+      "anonymous": False,
+      "inputs": [
+        {"indexed": True, "internalType": "uint256", "name": "licenseId", "type": "uint256"},
+        {"indexed": True, "internalType": "uint256", "name": "tokenId", "type": "uint256"},
+        {"indexed": True, "internalType": "address", "name": "licensee", "type": "address"},
+        {"indexed": False, "internalType": "enum ArtDRM.LicenseType", "name": "licenseType", "type": "uint8"},
+        {"indexed": False, "internalType": "enum ArtDRM.Duration", "name": "duration", "type": "uint8"},
+        {"indexed": False, "internalType": "uint256", "name": "feePaid", "type": "uint256"}
+      ],
+      "name": "LicenseGranted",
+      "type": "event"
+    },
+]
+
+# Update the LICENSE_TYPES to match your contract:
+class Web3Service:
+    LICENSE_TYPES = {
+        'PERSONAL_USE': 0,
+        'NON_COMMERCIAL': 1,
+        'COMMERCIAL': 2,
+        'EXTENDED_COMMERCIAL': 3,
+        'EXCLUSIVE': 4,
+        'ARTWORK_OWNERSHIP': 5,
+        'CUSTOM': 6
+    }
+    
+    DURATION_TYPES = {
+        'MONTHLY': 0,
+        'QUARTERLY': 1,
+        'PERPETUAL': 2
+    }
+    
+    def __init__(self, target_network=None):
+        self.w3 = None
+        self.web3 = None
+        self.contract = None
+        self.connected = False
+        self.target_network = target_network or 'wirefluid'
+        self.demo_mode = getattr(settings, 'DEMO_MODE', False)
+        
+        # Initialize mock system for demo mode
+        if self.demo_mode:
+            self.mock_system = MockArtworkSystem()
+            logger.info("✅ Web3Service initialized in DEMO mode")
+        else:
+            try:
+                self._initialize_web3()
+            except Exception as e:
+                logger.error(f"❌ Web3 initialization failed, falling back to demo mode: {e}")
+                self.demo_mode = True
+                self.mock_system = MockArtworkSystem()
+                logger.info("✅ Web3Service fell back to DEMO mode due to connection issues")
+
+    def _initialize_web3(self):
+        """Initialize Web3 connection with multiple provider fallbacks"""
+        try:
+            provider_url = getattr(settings, 'WIREFLUID_RPC_URL', 'https://evm.wirefluid.com')
+            contract_address = getattr(settings, 'WIREFLUID_CONTRACT_ADDRESS', None)
+            self.network_name = 'WireFluid Testnet'
+            self.currency_symbol = 'WIRE'
+            self.explorer_url = 'https://wirefluidscan.com'
+            
+            if not provider_url:
+                logger.error("❌ RPC provider URL not set in environment variables")
+                raise ValueError("RPC provider URL environment variable not set")
+                
+            if not contract_address:
+                logger.error(f"❌ CONTRACT_ADDRESS not set for {self.network_name}")
+                raise ValueError(f"Contract address not set for {self.network_name}")
+                
+            providers_to_try = [
+              provider_url,
+              "https://evm2.wirefluid.com",
+              "https://evm3.wirefluid.com",
+              "https://evm4.wirefluid.com",
+              "https://evm5.wirefluid.com",
+            ]
+            
+            connected = False
+            last_error = None
+            
+            for i, current_provider in enumerate(providers_to_try):
+                if i > 0:  # Skip first provider (already set)
+                    logger.info(f"🔄 Trying fallback provider {i}: {current_provider}")
+                
+                try:
+                    self.w3 = Web3(Web3.HTTPProvider(
+                        current_provider,
+                        request_kwargs={
+                            'timeout': 30,  # Reduced timeout for faster failover
+                            'proxies': None
+                        }
+                    ))
+                    
+                    self.web3 = self.w3
+                    
+                    # Test connection with quick retry
+                    max_retries = 3
+                    for attempt in range(max_retries):
+                        try:
+                            is_connected = self.w3.is_connected()
+                            if is_connected:
+                                logger.info(f"✅ Connected to Web3 provider: {current_provider}")
+                                connected = True
+                                provider_url = current_provider  # Use the working provider
+                                break
+                            else:
+                                logger.warning(f"❌ Connection attempt {attempt + 1} failed for {current_provider}")
+                                if attempt < max_retries - 1:
+                                    import time
+                                    time.sleep(1)
+                        except Exception as e:
+                            logger.warning(f"❌ Connection attempt {attempt + 1} failed with error: {e}")
+                            if attempt < max_retries - 1:
+                                import time
+                                time.sleep(1)
+                    
+                    if connected:
+                        break
+                        
+                except Exception as e:
+                    last_error = e
+                    logger.warning(f"❌ Provider {current_provider} failed: {e}")
+                    continue
+            
+            if not connected:
+                raise ConnectionError(f"All Web3 providers failed. Last error: {last_error}")
+                    
+            logger.info("✅ Web3 provider connected successfully")
+            
+            # Get chain ID
+            try:
+                self.chain_id = self.w3.eth.chain_id
+                logger.info(f"🔗 Chain ID: {self.chain_id}")
+            except Exception as e:
+                logger.error(f"❌ Failed to get chain ID: {e}")
+                raise ConnectionError(f"Cannot get chain ID: {e}")
+            
+            # Verify contract with retry
+            contract_address_checksum = Web3.to_checksum_address(contract_address)
+            code = '0x'
+            
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    code = self.w3.eth.get_code(contract_address_checksum)
+                    if code != '0x':
+                        logger.info(f"✅ Contract code found on attempt {attempt + 1}")
+                        break
+                    else:
+                        logger.warning(f"⚠️ Contract check attempt {attempt + 1} - no code at address")
+                except Exception as e:
+                    logger.warning(f"⚠️ Contract check attempt {attempt + 1} failed: {e}")
+                
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(2)
+            
+            if code == '0x':
+                logger.warning(f"⚠️ No contract code at {contract_address_checksum}, but continuing...")
+                # Don't fail completely, just warn
+
+            logger.info(f"✅ Contract found at {contract_address_checksum}")
+            
+            # Initialize contract
+            self.contract = self.w3.eth.contract(
+                address=contract_address_checksum,
+                abi=CONTRACT_ABI
+            )
+            
+            # Test contract connection (but don't fail if it doesn't work)
+            try:
+                if hasattr(self.contract.functions, "getCurrentTokenId"):
+                    current_id = self.contract.functions.getCurrentTokenId().call()
+                    logger.info(f"✅ Contract connected. Current token ID: {current_id}")
+                else:
+                    logger.warning("⚠️ ABI does not include getCurrentTokenId()")
+                    
+                # Additional contract test
+                try:
+                    name = self.contract.functions.name().call()
+                    symbol = self.contract.functions.symbol().call()
+                    logger.info(f"✅ Contract details - Name: {name}, Symbol: {symbol}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not get contract name/symbol: {e}")
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ Contract test call failed, but continuing: {e}")
+                
+            self.connected = True
+            self.demo_mode = False
+            logger.info("✅ Web3Service initialized successfully in REAL mode")
+
+        except Exception as e:
+            logger.error(f"❌ Web3 initialization failed: {e}")
+            self.connected = False
+            self.demo_mode = True
+            # Don't re-raise - let it fall back to demo mode
+            # This allows the server to start even if blockchain is unavailable
+    
+    def get_contract(self):
+        """Get the contract instance"""
+        if self.demo_mode:
+            return None  # Mock system doesn't need real contract
+        
+        if not self.contract:
+            raise Exception("Contract not initialized")
+        
+        return self.contract
+
+    async def get_current_gas_price(self):
+        """Get current gas prices with better error handling"""
+        try:
+            if self.demo_mode:
+                return {
+                    'gasPrice': Web3.to_wei(30, 'gwei')
+                }
+            
+            if not self.w3 or not self.w3.is_connected():
+                logger.warning("Web3 not connected, using fallback gas price")
+                return {
+                    'gasPrice': Web3.to_wei(40, 'gwei')
+                }
+            
+            # Rest of your existing gas price logic...
+            latest_block = self.w3.eth.get_block('latest')
+            
+            # Check if EIP-1559 is supported
+            if latest_block.get('baseFeePerGas'):
+                try:
+                    base_fee = latest_block['baseFeePerGas']
+                    
+                    # Try to get priority fee, with fallback
+                    try:
+                        max_priority_fee_per_gas = self.w3.eth.max_priority_fee
+                    except Exception:
+                        # Fallback: use a reasonable priority fee (1.5 gwei for testnets)
+                        max_priority_fee_per_gas = Web3.to_wei(1.5, 'gwei')
+                    
+                    # Calculate max fee per gas: base fee * 2 + priority fee (aggressive for testnet)
+                    max_fee_per_gas = (base_fee * 2) + max_priority_fee_per_gas
+                    
+                    # Ensure priority fee is reasonable compared to max fee
+                    if max_priority_fee_per_gas >= max_fee_per_gas:
+                        max_priority_fee_per_gas = max_fee_per_gas // 3
+                    
+                    return {
+                        'maxFeePerGas': max_fee_per_gas,
+                        'maxPriorityFeePerGas': max_priority_fee_per_gas
+                    }
+                except Exception as eip1559_error:
+                    logger.warning(f"EIP-1559 gas pricing failed: {eip1559_error}")
+                    # Fall through to legacy pricing
+            
+            # Legacy gas pricing
+            try:
+                gas_price = self.w3.eth.gas_price
+                # Add 50% buffer for testnet reliability
+                buffered_gas_price = int(gas_price * 1.5)
+                
+                return {
+                    'gasPrice': buffered_gas_price
+                }
+            except Exception as legacy_error:
+                logger.error(f"Legacy gas pricing failed: {legacy_error}")
+                # Final fallback
+                return {
+                    'gasPrice': Web3.to_wei(40, 'gwei')  # 40 Gwei fallback
+                }
+                
+        except Exception as e:
+            logger.error(f"Error getting gas prices, using fallback: {e}")
+            return {
+                'gasPrice': Web3.to_wei(40, 'gwei')  # Safe fallback
+            }
+
+    # async def prepare_license_transaction(self, token_id, licensee_address, duration_days, 
+    #                                 terms_hash, license_type, from_address, artwork_price_eth, license_percentage):
+    #     """Prepare license transaction with better gas handling"""
+    #     try:
+    #         # Get current gas prices with proper fallbacks
+    #         gas_prices = await self.get_current_gas_price()
+            
+    #         contract = self.get_contract()
+            
+    #         # Convert license type to integer if needed
+    #         if isinstance(license_type, str):
+    #             license_type_int = self.LICENSE_TYPES.get(license_type.upper(), 1)  # Default to COMMERCIAL
+    #         else:
+    #             license_type_int = int(license_type)
+            
+    #         # Convert all addresses to checksum format
+    #         from_address_checksum = Web3.to_checksum_address(from_address)
+    #         licensee_address_checksum = Web3.to_checksum_address(licensee_address)
+            
+
+    #         # ✅ Calculate license fee from artwork price × license percentage
+    #         artwork_price_wei = Web3.to_wei(token_id, 'ether')
+    #         license_fee_wei = (artwork_price_wei * int(license_percentage * 100)) // 10000
+
+    #         # ✅ Calculate platform fees from database (admin settings)
+    #         from app.api.v1.artwork import get_current_global_fee
+    #         platform_fee_percentage = await get_current_global_fee()
+    #         platform_fee_basis = int(platform_fee_percentage * 100)
+            
+            
+    #         buyer_platform_fee_wei = (artwork_price_wei * platform_fee_basis) // 10000
+    #         seller_platform_fee_wei = (license_fee_wei * platform_fee_basis) // 10000
+    #         total_required_wei = license_fee_wei + buyer_platform_fee_wei
+            
+    #         logger.info(f"💰 License fee calculation:")
+    #         logger.info(f"   Artwork Price: {artwork_price_eth} ETH")
+    #         logger.info(f"   License Percentage: {license_percentage}%")
+    #         logger.info(f"   License Fee: {Web3.from_wei(license_fee_wei, 'ether')} ETH")
+    #         logger.info(f"   Buyer Platform Fee ({platform_fee_percentage}%): {Web3.from_wei(buyer_platform_fee_wei, 'ether')} ETH")
+    #         logger.info(f"   Seller Platform Fee ({platform_fee_percentage}%): {Web3.from_wei(seller_platform_fee_wei, 'ether')} ETH")
+    #         logger.info(f"   Total Required: {Web3.from_wei(total_required_wei, 'ether')} ETH")
+        
+    #         # Get nonce
+    #         nonce = await self.get_nonce(from_address_checksum)
+            
+    #         # Prepare base transaction parameters
+    #         base_params = {
+    #             'from': from_address_checksum,
+    #             'value': total_required_wei,  # Fixed 0.1 ETH fee
+    #             'chainId': self.chain_id,
+    #             'nonce': nonce
+    #         }
+            
+    #         # Add gas pricing (EIP-1559 or legacy)
+    #         if 'maxFeePerGas' in gas_prices:
+    #             # EIP-1559 transaction
+    #             base_params.update({
+    #                 'maxFeePerGas': gas_prices['maxFeePerGas'],
+    #                 'maxPriorityFeePerGas': gas_prices['maxPriorityFeePerGas']
+    #             })
+    #         else:
+    #             # Legacy transaction
+    #             base_params['gasPrice'] = gas_prices['gasPrice']
+            
+    #         # Build the transaction
+    #         transaction = contract.functions.grantLicense(
+    #             token_id,
+    #             licensee_address_checksum,
+    #             duration_days,
+    #             terms_hash,
+    #             license_type_int,
+    #             license_fee_wei, 
+    #             buyer_platform_fee_wei,
+    #             seller_platform_fee_wei
+    #         ).build_transaction(base_params)
+            
+    #         # Estimate gas with fallback
+    #         try:
+    #             gas_estimate = contract.functions.grantLicense(
+    #                 token_id,
+    #                 licensee_address_checksum,
+    #                 duration_days,
+    #                 terms_hash,
+    #                 license_type_int,
+    #                 license_fee_wei,  # ✅ Pass calculated license fee
+    #                 buyer_platform_fee_wei,  # ✅ Pass calculated fees
+    #                 seller_platform_fee_wei
+    #             ).estimate_gas({
+    #                 'from': from_address_checksum,
+    #                 'value': total_required_wei
+    #             })
+    #             transaction['gas'] = int(gas_estimate * 1.3)  # Add 30% buffer
+    #         except Exception as gas_error:
+    #             logger.warning(f"Gas estimation failed, using default: {gas_error}")
+    #             transaction['gas'] = 300000  # Safe default for license transactions
+            
+    #         # Return the transaction data in the expected format
+    #         result = {
+    #             'to': transaction['to'],
+    #             'data': transaction['data'],
+    #             'value': hex(transaction['value']),
+    #             'gas': hex(transaction['gas']),
+    #             'chainId': hex(transaction['chainId']),
+    #             'nonce': hex(transaction['nonce'])
+    #         }
+            
+    #         # Add gas pricing fields
+    #         if 'maxFeePerGas' in transaction:
+    #             result.update({
+    #                 'maxFeePerGas': hex(transaction['maxFeePerGas']),
+    #                 'maxPriorityFeePerGas': hex(transaction['maxPriorityFeePerGas'])
+    #             })
+    #         else:
+    #             result['gasPrice'] = hex(transaction['gasPrice'])
+            
+    #         return result
+            
+    #     except Exception as e:
+    #         logger.error(f"Error preparing license transaction: {e}", exc_info=True)
+            
+    #         # Fallback for demo mode or connection issues
+    #         if self.demo_mode:
+    #             return {
+    #                 'to': settings.CONTRACT_ADDRESS,
+    #                 'data': '0x' + '0' * 128,
+    #                 'value': hex(Web3.to_wei(0.1, 'ether')),
+    #                 'gas': '0x3d090',  # 250,000 gas
+    #                 'gasPrice': hex(Web3.to_wei(30, 'gwei')),
+    #                 'chainId': hex(self.chain_id if hasattr(self, 'chain_id') else 11155111),
+    #                 'nonce': '0x0'
+    #             }
+    #         raise
+      
+    async def get_nonce(self, address):
+        """Get the transaction nonce for an address"""
+        try:
+            if self.demo_mode:
+                return 0
+            
+            address_checksum = Web3.to_checksum_address(address)
+            return self.w3.eth.get_transaction_count(address_checksum)
+        except Exception as e:
+            logger.error(f"Error getting nonce for {address}: {e}")
+            return 0
+    # Add these methods to your Web3Service class:
+
+    async def prepare_purchase_license_transaction(self, token_id: int, owner_address: str,
+                                            buyer_address: str, license_type: str,
+                                            actual_amount_wei: int, license_fee_wei: int):
+        """Prepare license purchase transaction with proper fee breakdown"""
+        try:
+            if self.demo_mode:
+                total_amount = actual_amount_wei + license_fee_wei
+                return {
+                    'to': settings.CONTRACT_ADDRESS,
+                    'data': '0x' + '0' * 128,
+                    'value': hex(total_amount),
+                    'gas': '0x493e0',
+                    'gasPrice': hex(Web3.to_wei(30, 'gwei'))
+                }
+
+            # Convert license type to integer
+            license_type_int = self.LICENSE_TYPES.get(license_type.upper(), 0)
+            
+            # Convert addresses to checksum format
+            owner_checksum = Web3.to_checksum_address(owner_address)
+            buyer_checksum = Web3.to_checksum_address(buyer_address)
+            
+            # Get gas prices
+            gas_prices = await self.get_current_gas_price()
+            
+            # Calculate total amount (actual + fee)
+            total_amount = actual_amount_wei + license_fee_wei
+            
+            # Prepare base transaction
+            base_params = {
+                'from': buyer_checksum,
+                'value': total_amount,
+                'chainId': self.chain_id,
+                'nonce': self.w3.eth.get_transaction_count(buyer_checksum)
+            }
+            
+            # Add gas pricing
+            if 'maxFeePerGas' in gas_prices:
+                base_params.update({
+                    'maxFeePerGas': gas_prices['maxFeePerGas'],
+                    'maxPriorityFeePerGas': gas_prices['maxPriorityFeePerGas']
+                })
+            else:
+                base_params['gasPrice'] = gas_prices['gasPrice']
+            
+            # Build transaction
+            transaction = self.contract.functions.purchaseLicense(
+                token_id,
+                owner_checksum,
+                buyer_checksum,
+                license_type_int,
+                actual_amount_wei,
+                license_fee_wei
+            ).build_transaction(base_params)
+            
+            # Estimate gas
+            try:
+                gas_estimate = self.contract.functions.purchaseLicense(
+                    token_id,
+                    owner_checksum,
+                    buyer_checksum,
+                    license_type_int,
+                    actual_amount_wei,
+                    license_fee_wei
+                ).estimate_gas({
+                    'from': buyer_checksum,
+                    'value': total_amount
+                })
+                transaction['gas'] = int(gas_estimate * 1.3)
+            except Exception:
+                transaction['gas'] = 300000  # Safe default
+
+            # Return formatted transaction
+            result = {
+                'to': transaction['to'],
+                'data': transaction['data'],
+                'value': hex(transaction['value']),
+                'gas': hex(transaction['gas']),
+                'chainId': hex(transaction['chainId']),
+                'nonce': hex(transaction['nonce'])
+            }
+            
+            if 'maxFeePerGas' in transaction:
+                result.update({
+                    'maxFeePerGas': hex(transaction['maxFeePerGas']),
+                    'maxPriorityFeePerGas': hex(transaction['maxPriorityFeePerGas'])
+                })
+            else:
+                result['gasPrice'] = hex(transaction['gasPrice'])
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error preparing license purchase transaction: {e}")
+            raise
+
+    async def prepare_simple_license_purchase(self, token_id: int, buyer_address: str, 
+                                      license_type: str, total_amount_wei: int = None,
+                                      artwork_price_eth: float = None, license_percentage: float = None,
+                                      duration_days: int = 36500):
+        """Prepare license purchase transaction - buyer calls purchaseLicense function"""
+        try:
+            if self.demo_mode:
+                if total_amount_wei is not None:
+                    value_amount = total_amount_wei
+                else:
+                    value_amount = Web3.to_wei(0.1, 'ether')
+                    
+                return {
+                    'to': settings.CONTRACT_ADDRESS,
+                    'data': '0x' + '0' * 128,
+                    'value': hex(value_amount),
+                    'gas': '0x493e0',
+                    'gasPrice': hex(Web3.to_wei(30, 'gwei'))
+                }
+
+            license_type_int = self.LICENSE_TYPES.get(license_type.upper(), 0)
+            buyer_checksum = Web3.to_checksum_address(buyer_address)
+            
+            # ✅ Calculate fees from artwork price using floating point math for precision
+            if artwork_price_eth and license_percentage:
+                artwork_price_wei = Web3.to_wei(artwork_price_eth, 'ether')
+                # Convert percentages to float
+                license_percentage_float = float(license_percentage)
+                license_fee_wei = int(artwork_price_wei * license_percentage_float / 100)
+
+                logger.info(f"💰 License fee calculation:")
+                logger.info(f"   Artwork price: {artwork_price_eth} ETH = {artwork_price_wei} wei")
+                logger.info(f"   License percentage: {license_percentage_float}%")
+                logger.info(f"   License fee: {license_fee_wei} wei = {Web3.from_wei(license_fee_wei, 'ether')} ETH")
+                
+                # ✅ Get platform fee from database
+                from app.api.v1.ticket import get_current_global_fee
+                platform_fee_percentage = await get_current_global_fee()
+                platform_fee_percentage_float = float(platform_fee_percentage)
+                
+                # ✅ DOUBLE FEE LOGIC: 
+                # 1. Buyer Platform Fee (Markup added on top of license price)
+                buyer_platform_fee_wei = int(artwork_price_wei * platform_fee_percentage_float / 100)
+                
+                # 2. Seller Platform Fee (Deduction from creator's license share)
+                seller_platform_fee_wei = int(artwork_price_wei * platform_fee_percentage_float / 100)
+                
+                # ✅ SAFETY GUARD: Seller fee cannot exceed license fee (avoids contract underflow)
+                if seller_platform_fee_wei >= license_fee_wei:
+                    logger.warning(f"⚠️ Seller fee ({seller_platform_fee_wei}) exceeds or equals license fee ({license_fee_wei}). Cap at 50% to ensure creator gets something.")
+                    seller_platform_fee_wei = license_fee_wei // 2
+                
+                logger.info(f"   Platform fee percentage: {platform_fee_percentage_float}%")
+                logger.info(f"   Buyer platform fee: {buyer_platform_fee_wei} wei = {Web3.from_wei(buyer_platform_fee_wei, 'ether')} ETH")
+                logger.info(f"   Seller platform fee: {seller_platform_fee_wei} wei = {Web3.from_wei(seller_platform_fee_wei, 'ether')} ETH")
+                
+                total_required_wei = license_fee_wei + buyer_platform_fee_wei
+                
+                logger.info(f"   Total required (Buyer pays): {license_fee_wei} + {buyer_platform_fee_wei} = {total_required_wei} wei")
+                logger.info(f"   Creator receives: {license_fee_wei} - {seller_platform_fee_wei} = {license_fee_wei - seller_platform_fee_wei} wei")
+                logger.info(f"   Platform receives: {buyer_platform_fee_wei} + {seller_platform_fee_wei} = {buyer_platform_fee_wei + seller_platform_fee_wei} wei")
+            elif total_amount_wei is not None:
+                # Fallback: Use provided amount
+                total_required_wei = total_amount_wei
+                # Estimate fees (Double Fee assumption: approx 2.5% each side)
+                buyer_platform_fee_wei = (total_amount_wei * 25) // 1000 
+                license_fee_wei = total_amount_wei - buyer_platform_fee_wei
+                seller_platform_fee_wei = (license_fee_wei * 25) // 1000
+            else:
+                raise ValueError("Either (artwork_price_eth + license_percentage) or total_amount_wei must be provided")
+            
+            # Get gas prices
+            gas_prices = await self.get_current_gas_price()
+            
+            base_params = {
+                'from': buyer_checksum,
+                'value': total_required_wei,
+                'chainId': self.chain_id,
+                'nonce': self.w3.eth.get_transaction_count(buyer_checksum)
+            }
+            
+            # Add gas pricing
+            if 'maxFeePerGas' in gas_prices:
+                base_params.update({
+                    'maxFeePerGas': gas_prices['maxFeePerGas'],
+                    'maxPriorityFeePerGas': gas_prices['maxPriorityFeePerGas']
+                })
+            else:
+                base_params['gasPrice'] = gas_prices['gasPrice']
+            
+            # ✅ Build transaction with purchaseLicense function
+            terms_hash = ""  # Default
+            
+            try:
+                # duration_days is used directly (MONTHLY=30, QUARTERLY=90, PERPETUAL=36500)
+                
+                logger.info(f"💰 License purchase - Token: {token_id}, Type: {license_type}, Duration Days: {duration_days}, Price: {license_fee_wei} wei ({Web3.from_wei(license_fee_wei, 'ether')} {self.currency_symbol})")
+                
+                transaction = self.contract.functions.purchaseLicense(  
+                    token_id,
+                    duration_days, # ✅ Correct uint256 parameter
+                    terms_hash,
+                    license_type_int,
+                    license_fee_wei, 
+                    buyer_platform_fee_wei,
+                    seller_platform_fee_wei
+                ).build_transaction(base_params)
+                
+                # Set default gas first
+                transaction['gas'] = 300000
+                
+            except Exception as build_error:
+                error_msg = str(build_error)
+                logger.error(f"❌ Transaction build failed: {error_msg}")
+                raise ValueError(f"Failed to build transaction: {error_msg}")
+            
+            # Try to estimate gas
+            try:
+                gas_estimate = self.contract.functions.purchaseLicense( 
+                    token_id,
+                    duration_enum,
+                    terms_hash,
+                    license_type_int,
+                    license_fee_wei,
+                    buyer_platform_fee_wei,
+                    seller_platform_fee_wei
+                ).estimate_gas({
+                    'from': buyer_checksum,
+                    'value': total_required_wei
+                })
+                transaction['gas'] = int(gas_estimate * 1.2)
+            except Exception as gas_error:
+                logger.warning(f"Gas estimation failed, using default: {gas_error}")
+                transaction['gas'] = 300000
+            
+            # Return transaction data
+            result = {
+                'to': transaction['to'],
+                'data': transaction['data'],
+                'gas': hex(transaction['gas']),
+                'value': hex(transaction['value']),
+                'nonce': hex(transaction['nonce']),
+            }
+            
+            if 'maxFeePerGas' in gas_prices:
+                result.update({
+                    'maxFeePerGas': hex(gas_prices['maxFeePerGas']),
+                    'maxPriorityFeePerGas': hex(gas_prices['maxPriorityFeePerGas'])
+                })
+            else:
+                result['gasPrice'] = hex(gas_prices['gasPrice'])
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error preparing simple license purchase: {e}")
+            raise
+
+    async def get_license_info(self, license_id: int) -> Optional[Dict[str, Any]]:
+        """Get license info from blockchain"""
+        try:
+            if self.demo_mode:
+                return {
+                    "token_id": 1,
+                    "owner": "0x1234...",
+                    "buyer": "0x5678...",
+                    "actual_amount": Web3.to_wei(0.095, 'ether'),
+                    "license_fee": Web3.to_wei(0.005, 'ether'),
+                    "total_amount": Web3.to_wei(0.1, 'ether'),
+                    "purchase_time": 1640995200,
+                    "license_type": 0,
+                    "is_active": True
+                }
+            
+            if not self.contract:
+                return None
+                
+            result = self.contract.functions.getLicenseInfo(license_id).call()
+            logger.info(f"✅ Successfully fetched license {license_id} from blockchain")
+            return {
+                "token_id": result[0],
+                "owner": result[1],
+                "buyer": result[2],
+                "actual_amount": result[3],
+                "license_fee": result[4],
+                "total_amount": result[5],
+                "purchase_time": result[6],
+                "license_type": result[7],
+                "is_active": result[8]
+            }
+            
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"❌ Failed to get license info for ID {license_id}: {error_msg}")
+            
+            # ✅ Detailed error logging
+            if "License not found" in error_msg:
+                logger.error(f"   → License {license_id} does not exist in contract's licenseLocations mapping")
+            elif "execution reverted" in error_msg:
+                logger.error(f"   → Contract call reverted. Check if license {license_id} exists in new contract")
+            return None
+
+    async def get_buyer_licenses(self, buyer_address: str) -> List[Dict[str, Any]]:
+        """Get all licenses for a buyer"""
+        try:
+            if self.demo_mode:
+                return []
+            
+            if not self.contract:
+                return []
+                
+            buyer_checksum = Web3.to_checksum_address(buyer_address)
+            licenses = self.contract.functions.getBuyerLicenses(buyer_checksum).call()
+            
+            formatted_licenses = []
+            for license_data in licenses:
+                formatted_licenses.append({
+                    "license_id": license_data[0],
+                    "token_id": license_data[1],
+                    "owner": license_data[2],
+                    "buyer": license_data[3],
+                    "actual_amount": license_data[4],
+                    "license_fee": license_data[5],
+                    "total_amount": license_data[6],
+                    "purchase_time": license_data[7],
+                    "license_type": license_data[8],
+                    "is_active": license_data[9]
+                })
+            
+            return formatted_licenses
+            
+        except Exception as e:
+            logger.error(f"Failed to get buyer licenses for {buyer_address}: {e}")
+            return []
+
+    async def revoke_license(self,token_id: int, license_id: int,licensee_address: str, from_address: str) -> Dict[str, Any]:
+        """Prepare license revocation transaction"""
+        try:
+            if self.demo_mode:
+                return {
+                    'to': settings.CONTRACT_ADDRESS,
+                    'data': '0x' + f'{license_id:064x}',
+                    'value': '0x0',
+                    'gas': '0x493e0',
+                    'gasPrice': hex(Web3.to_wei(30, 'gwei'))
+                }
+
+            from_checksum = Web3.to_checksum_address(from_address)
+            licensee_checksum = Web3.to_checksum_address(licensee_address)
+            gas_prices = await self.get_current_gas_price()
+            
+            base_params = {
+                'from': from_checksum,
+                'chainId': self.chain_id,
+                'nonce': self.w3.eth.get_transaction_count(from_checksum)
+            }
+            
+            if 'maxFeePerGas' in gas_prices:
+                base_params.update({
+                    'maxFeePerGas': gas_prices['maxFeePerGas'],
+                    'maxPriorityFeePerGas': gas_prices['maxPriorityFeePerGas']
+                })
+            else:
+                base_params['gasPrice'] = gas_prices['gasPrice']
+            
+            transaction = self.contract.functions.revokeLicense(token_id, licensee_checksum).build_transaction(base_params)
+            
+            try:
+                gas_estimate = self.contract.functions.revokeLicense(token_id, licensee_checksum).estimate_gas({
+                    'from': from_checksum
+                })
+                transaction['gas'] = int(gas_estimate * 1.3)
+            except Exception:
+                transaction['gas'] = 100000
+
+            result = {
+                'to': transaction['to'],
+                'data': transaction['data'],
+                'gas': hex(transaction['gas']),
+                'value': '0x0',
+                'nonce': hex(transaction['nonce'])
+            }
+            
+            if 'maxFeePerGas' in transaction:
+                result.update({
+                    'maxFeePerGas': hex(transaction['maxFeePerGas']),
+                    'maxPriorityFeePerGas': hex(transaction['maxPriorityFeePerGas'])
+                })
+            else:
+                result['gasPrice'] = hex(transaction['gasPrice'])
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error preparing license revocation: {e}")
+            raise
+
+    # Update the LICENSE_TYPES validation method
+    @classmethod
+    def validate_license_type(cls, license_type) -> int:
+        """Validate and convert license type to integer"""
+        if isinstance(license_type, str):
+            license_type_upper = license_type.upper()
+            if license_type_upper not in cls.LICENSE_TYPES:
+                raise ValueError(f"Invalid license type: {license_type}. Must be one of: {list(cls.LICENSE_TYPES.keys())}")
+            return cls.LICENSE_TYPES[license_type_upper]
+        else:
+            license_type_int = int(license_type)
+            if license_type_int not in cls.LICENSE_TYPES.values():
+                raise ValueError(f"Invalid license type integer: {license_type_int}. Must be one of: {list(cls.LICENSE_TYPES.values())}")
+            return license_type_int
+      
+    async def estimate_gas(self, transaction: dict) -> int:
+        """Estimate gas for a transaction"""
+        if self.demo_mode:
+            return 200000  # Mock gas estimate
+        
+        try:
+            return self.w3.eth.estimate_gas(transaction)
+        except Exception as e:
+            logger.warning(f"Gas estimation failed: {e}")
+            # Return a safe default
+            return 300000
+
+    async def prepare_register_transaction(self, metadata_uri: str, royalty_basis_points: int, from_address: str, is_conversion: bool = False,artwork_price_eth: float = None):
+        """Prepare artwork registration transaction with improved gas handling"""
+        try:
+            # Handle demo mode
+            if self.demo_mode:
+                return {
+                    'to': settings.CONTRACT_ADDRESS,
+                    'data': '0x' + '0' * 128,  # Mock transaction data
+                    'value': '0x0',
+                    'gas': '0x493e0',  # 300000 in hex
+                    'gasPrice': hex(Web3.to_wei(30, 'gwei'))
+                }
+            
+            from_address = Web3.to_checksum_address(from_address)
+            
+            # Get optimized gas prices
+            gas_prices = await self.get_current_gas_price()
+           
+            # ✅ FIXED: Skip registration fee if this is a conversion (user already paid via PayPal)
+            if is_conversion:
+                registration_fee_wei = 0
+                logger.info(f"🔄 Converting existing artwork - skipping registration fee (already paid via PayPal)")
+            else:
+                # ✅ Calculate registration fee from artwork price using platform fee (same as purchasing)
+              from app.api.v1.ticket import get_current_global_fee
+              platform_fee_percentage = await get_current_global_fee()  # Returns percentage (e.g., 2.5)
+              
+              # Calculate registration fee based on artwork price
+              if artwork_price_eth and artwork_price_eth > 0:
+                  # Calculate registration fee: platform fee percentage of artwork price
+                  artwork_price_wei = Web3.to_wei(artwork_price_eth, 'ether')
+                  registration_fee_wei = (artwork_price_wei * int(platform_fee_percentage * 100)) // 10000
+                  logger.info(f"💰 Registration fee: {Web3.from_wei(registration_fee_wei, 'ether')} ETH ({platform_fee_percentage}% of {artwork_price_eth} ETH)")
+              else:
+                  # Fallback: Use minimum registration fee if price not set
+                  logger.warning(f"⚠️ Artwork price not provided, using minimum registration fee")
+                  MIN_REGISTRATION_FEE_WEI = Web3.to_wei(0.001, 'ether')  # Minimum 0.001 ETH
+                  registration_fee_wei = MIN_REGISTRATION_FEE_WEI
+                  logger.info(f"💰 Using minimum registration fee: {Web3.from_wei(registration_fee_wei, 'ether')} ETH")
+            # Check balance first
+            balance = self.w3.eth.get_balance(from_address)
+            estimated_gas = 300000  # Conservative estimate for registration
+            
+            # Calculate required balance based on gas pricing method
+            if 'maxFeePerGas' in gas_prices:
+                required_balance = gas_prices['maxFeePerGas'] * estimated_gas
+            else:
+                required_balance = gas_prices['gasPrice'] * estimated_gas
+            
+            # ✅ FIXED: Only add registration fee to required balance if not a conversion
+            if not is_conversion:
+                required_balance += registration_fee_wei
+            
+            if balance < required_balance:
+                error_msg = f"Insufficient funds. Need {Web3.from_wei(required_balance, 'ether')} ETH"
+                if not is_conversion:
+                    error_msg += f" (gas: {Web3.from_wei(required_balance - registration_fee_wei, 'ether')} ETH + fee: {Web3.from_wei(registration_fee_wei, 'ether')} ETH)"
+                else:
+                    error_msg += f" (gas only: {Web3.from_wei(required_balance, 'ether')} ETH)"
+                error_msg += f", but only have {Web3.from_wei(balance, 'ether')} ETH"
+                raise ValueError(error_msg)
+
+            # Prepare base transaction parameters
+            base_params = {
+                'from': from_address,
+                'nonce': self.w3.eth.get_transaction_count(from_address),
+                'gas': estimated_gas,
+                'value': registration_fee_wei  # ✅ Add registration fee
+            }
+            
+            # Add gas pricing
+            base_params.update(gas_prices)
+
+            # Build transaction
+            tx = self.contract.functions.registerArtwork(
+                metadata_uri,
+                royalty_basis_points,
+                registration_fee_wei
+            ).build_transaction(base_params)
+
+             #✅ DEBUG: Log actual transaction value
+            logger.info(f"🔍 Transaction value check:")
+            logger.info(f"   registration_fee_wei (calculated): {registration_fee_wei}")
+            logger.info(f"   tx['value'] (from build_transaction): {tx.get('value')}")
+            logger.info(f"   hex(registration_fee_wei): {hex(registration_fee_wei)}") 
+
+            # Return in expected format
+            result = {
+                'to': tx['to'],
+                'data': tx['data'],
+                'gas': hex(estimated_gas),
+                'value': hex(tx.get('value', registration_fee_wei))  # ✅ Use tx['value'] to ensure correct value
+            }
+            
+            # Add gas pricing fields
+            if 'maxFeePerGas' in gas_prices:
+                result.update({
+                    'maxFeePerGas': hex(gas_prices['maxFeePerGas']),
+                    'maxPriorityFeePerGas': hex(gas_prices['maxPriorityFeePerGas'])
+                })
+            else:
+                result['gasPrice'] = hex(gas_prices['gasPrice'])
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Transaction preparation failed: {e}")
+            raise
+
+    # Add this method to verify ABI compatibility
+    async def verify_contract_abi(self) -> Dict[str, Any]:
+        """Verify that the contract ABI matches the deployed contract"""
+        try:
+            if self.demo_mode:
+                return {"status": "demo_mode", "message": "Running in demo mode"}
+            
+            if not self.contract or not self.w3:
+                return {"status": "error", "message": "Contract not initialized"}
+            
+            # Test various function calls to verify ABI
+            test_results = {}
+            
+            # Test view functions
+            try:
+                current_id = self.contract.functions.getCurrentTokenId().call()
+                test_results["getCurrentTokenId"] = {"status": "success", "value": current_id}
+            except Exception as e:
+                test_results["getCurrentTokenId"] = {"status": "error", "error": str(e)}
+            
+            try:
+                name = self.contract.functions.name().call()
+                test_results["name"] = {"status": "success", "value": name}
+            except Exception as e:
+                test_results["name"] = {"status": "error", "error": str(e)}
+            
+            try:
+                symbol = self.contract.functions.symbol().call()
+                test_results["symbol"] = {"status": "success", "value": symbol}
+            except Exception as e:
+                test_results["symbol"] = {"status": "error", "error": str(e)}
+            
+            return {
+                "status": "success",
+                "contract_address": self.contract.address,
+                "chain_id": self.w3.eth.chain_id,
+                "test_results": test_results
+            }
+            
+        except Exception as e:
+            logger.error(f"ABI verification failed: {e}")
+            return {"status": "error", "message": str(e)}
+
+    async def get_artwork_count(self) -> int:
+        """Get current artwork count for testing"""
+        try:
+            if self.demo_mode:
+                return self.mock_system.get_current_token_id()
+            
+            if not self.contract:
+                raise Exception("Contract not initialized")
+                
+            count = self.contract.functions.getCurrentTokenId().call()
+            return count
+            
+        except Exception as e:
+            logger.error(f"Failed to get artwork count: {e}")
+            raise
+
+    async def get_artwork_owner(self, token_id: int):
+        """Get artwork owner with proper async handling"""
+        try:
+            if self.demo_mode:
+                return self._get_demo_owner(token_id)
+            
+            if not self.contract:
+                logger.error("Contract not initialized")
+                return None
+                
+            # FIX: Remove await from sync calls, use proper async pattern
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    # FIX: Use run_in_executor for sync web3 calls
+                    loop = asyncio.get_event_loop()
+                    owner = await loop.run_in_executor(
+                        None, 
+                        self.contract.functions.ownerOf(token_id).call
+                    )
+                    
+                    if owner and owner != "0x0000000000000000000000000000000000000000":
+                        logger.info(f"✅ Successfully retrieved owner for token {token_id}: {owner}")
+                        return owner
+                    else:
+                        return None
+                        
+                except Exception as e:
+                    logger.warning(f"Owner lookup attempt {attempt + 1} failed for token {token_id}: {e}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(1)
+                        continue
+                    raise
+                    
+        except Exception as e:
+            logger.error(f"Failed to get owner for token {token_id}: {e}")
+            return None
+
+    async def get_artwork_info(self, token_id: int):
+        """Get artwork info with proper async handling"""
+        try:
+            if self.demo_mode:
+                return self._get_demo_artwork_info(token_id)
+            
+            if not self.contract:
+                logger.error("Contract not initialized")
+                return None
+                
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    loop = asyncio.get_event_loop()
+                    artwork_info = await loop.run_in_executor(
+                        None,
+                        self.contract.functions.getArtworkInfo(token_id).call
+                    )
+                    
+                    if artwork_info and len(artwork_info) >= 4:
+                        return {
+                            "creator": artwork_info[0],
+                            "metadata_uri": artwork_info[1],
+                            "royalty_percentage": artwork_info[2],
+                            "is_licensed": artwork_info[3]
+                        }
+                    else:
+                        logger.warning(f"Invalid artwork info format for token {token_id}")
+                        return None
+                        
+                except Exception as e:
+                  error_text = str(e).lower()
+                  if "0xd41b558f" in error_text:
+                    logger.info(
+                      f"Token {token_id} does not exist on current EVM contract (ArtworkNotFound), skipping getArtworkInfo"
+                    )
+                    return None
+                    logger.warning(f"Attempt {attempt + 1} failed for token {token_id}: {e}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(1)
+                        continue
+                    raise
+                    
+        except Exception as e:
+            logger.error(f"Failed to get artwork info for token {token_id}: {e}")
+            return None
+
+    async def check_connection_health(self) -> Dict[str, Any]:
+      """Check the health of the Web3 connection"""
+      try:
+          if self.demo_mode:
+              return {"status": "healthy", "mode": "demo"}
+          
+          if not self.w3:
+              return {"status": "error", "message": "Web3 not initialized"}
+          
+          # Test basic connection
+          is_connected = self.w3.is_connected()
+          if not is_connected:
+              return {"status": "error", "message": "Not connected to Web3 provider"}
+          
+          # Test block number retrieval
+          try:
+              block_number = self.w3.eth.block_number
+              block_info = {"block_number": block_number}
+          except Exception as e:
+              block_info = {"error": str(e)}
+          
+          # Test contract interaction
+          contract_status = "unknown"
+          try:
+              if self.contract:
+                  current_id = self.contract.functions.getCurrentTokenId().call()
+                  contract_status = f"healthy (current token: {current_id})"
+              else:
+                  contract_status = "contract not initialized"
+          except Exception as e:
+              contract_status = f"error: {str(e)}"
+          
+          return {
+              "status": "healthy",
+              "provider_url": settings.WEB3_PROVIDER_URL,
+              "contract_address": settings.CONTRACT_ADDRESS,
+              "chain_id": self.w3.eth.chain_id,
+              "block_info": block_info,
+              "contract_status": contract_status
+          }
+          
+      except Exception as e:
+          return {"status": "error", "message": str(e)}
+
+    async def get_transaction_receipt(self, tx_hash: str) -> Optional[Dict]:
+        """Get transaction receipt"""
+        try:
+            if self.demo_mode:
+                # Return mock receipt for demo
+                return {
+                    'status': 1,
+                    'blockNumber': 12345,
+                    'gasUsed': 300000,
+                    'logs': []
+                }
+            
+            if not self.w3:
+                return None
+                
+            receipt = self.w3.eth.get_transaction_receipt(tx_hash)
+            return {
+                'status': receipt['status'],
+                'blockNumber': receipt['blockNumber'],
+                'gasUsed': receipt['gasUsed'],
+                'logs': receipt['logs']
+            }
+        except Exception as e:
+            logger.error(f"Failed to get transaction receipt for {tx_hash}: {e}")
+            return None
+
+    async def get_token_id_from_tx(self, tx_hash: str) -> Optional[int]:
+        """Extract token ID from transaction logs"""
+        try:
+            if self.demo_mode:
+                # Return mock token ID for demo
+                if hasattr(self, 'mock_system'):
+                    return self.mock_system.get_current_token_id()
+                return 1
+            
+            if not self.w3 or not self.contract:
+                return None
+                
+            receipt = self.w3.eth.get_transaction_receipt(tx_hash)
+            
+            # Process logs to find ArtworkRegistered event
+            for log in receipt['logs']:
+                try:
+                    # Decode the log using contract ABI
+                    decoded_log = self.contract.events.ArtworkRegistered().process_log(log)
+                    token_id = decoded_log['args']['tokenId']
+                    logger.info(f"✅ Found token ID {token_id} in transaction {tx_hash}")
+                    return token_id
+                except Exception:
+                    # This log is not the event we're looking for
+                    continue
+                    
+            logger.warning(f"No ArtworkRegistered event found in transaction {tx_hash}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to extract token ID from transaction {tx_hash}: {e}")
+            return None
+
+    async def get_license_id_from_transaction(self, tx_hash: str) -> Optional[int]:
+        """Extract blockchain license ID from LicensePurchased event in transaction receipt"""
+        try:
+            if self.demo_mode:
+                # Return mock license ID for demo
+                return 1
+            
+            if not self.w3 or not self.contract:
+                return None
+                
+            receipt = self.w3.eth.get_transaction_receipt(tx_hash)
+            
+            # Process logs to find LicensePurchased event
+            for log in receipt['logs']:
+                try:
+                    # Decode the log using contract ABI
+                    decoded_log = self.contract.events.LicenseGranted().process_log(log)
+                    license_id = decoded_log['args']['licenseId']
+                    logger.info(f"✅ Found blockchain license ID {license_id} in transaction {tx_hash}")
+                    return license_id
+                except Exception:
+                    # This log is not the event we're looking for
+                    continue
+                    
+            logger.warning(f"No LicensePurchased event found in transaction {tx_hash}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to extract license ID from transaction {tx_hash}: {e}")
+            return None
+
+    @classmethod
+    def get_license_types(cls) -> Dict[str, int]:
+        """Get available license types mapping"""
+        return cls.LICENSE_TYPES.copy()
+
+    @classmethod
+    def validate_license_type(cls, license_type) -> int:
+        """Validate and convert license type to integer"""
+        if isinstance(license_type, str):
+            license_type_upper = license_type.upper()
+            if license_type_upper not in cls.LICENSE_TYPES:
+                raise ValueError(f"Invalid license type: {license_type}. Must be one of: {list(cls.LICENSE_TYPES.keys())}")
+            return cls.LICENSE_TYPES[license_type_upper]
+        else:
+            license_type_int = int(license_type)
+            if license_type_int not in cls.LICENSE_TYPES.values():
+                raise ValueError(f"Invalid license type integer: {license_type_int}. Must be one of: {list(cls.LICENSE_TYPES.values())}")
+            return license_type_int
+
+    async def prepare_marketplace_sale_transaction(self, token_id: int, buyer_address: str,
+                                            seller_address: str, sale_price_wei: int) -> Dict[str, Any]:
+      """Prepare a marketplace sale transaction using a smart contract"""
+      try:
+          if self.demo_mode:
+              return {
+                  'to': settings.CONTRACT_ADDRESS,
+                  'data': '0x' + '0' * 128,  # Mock transaction data
+                  'value': hex(sale_price_wei),
+                  'gas': '0x7a120',  # 500000 in hex for marketplace interaction
+                  'gasPrice': hex(Web3.to_wei(30, 'gwei'))
+              }
+          
+          buyer_address_checksum = Web3.to_checksum_address(buyer_address)
+          seller_address_checksum = Web3.to_checksum_address(seller_address)
+          
+          # Get optimized gas prices
+          gas_prices = await self.get_current_gas_price()
+          
+          # Prepare marketplace transaction
+          base_params = {
+              'from': buyer_address_checksum,
+              'value': sale_price_wei,
+              'gas': 200000,  # Higher gas for contract interaction
+              'nonce': self.w3.eth.get_transaction_count(buyer_address_checksum),
+          }
+          
+          # Add gas pricing
+          base_params.update(gas_prices)
+          
+          # Build the transaction to call a marketplace purchase function
+          # This would be your marketplace contract function
+          tx = self.contract.functions.purchaseArtwork(
+              token_id,
+              seller_address_checksum
+          ).build_transaction(base_params)
+          
+          # Return in expected format
+          result = {
+              'to': tx['to'],
+              'value': hex(tx['value']),
+              'gas': hex(tx['gas']),
+              'data': tx['data'],
+              'nonce': hex(tx['nonce'])
+          }
+          
+          # Add gas pricing fields
+          if 'maxFeePerGas' in gas_prices:
+              result.update({
+                  'maxFeePerGas': hex(gas_prices['maxFeePerGas']),
+                  'maxPriorityFeePerGas': hex(gas_prices['maxPriorityFeePerGas'])
+              })
+          else:
+              result['gasPrice'] = hex(gas_prices['gasPrice'])
+          
+          return result
+          
+      except Exception as e:
+          logger.error(f"Marketplace sale transaction preparation failed: {e}")
+          raise
+
+    # In your Web3Service class, add these methods:
+
+    async def prepare_sale_transaction(self, token_id: int, buyer_address: str, 
+                                 seller_address: str, sale_price_wei: int) -> Dict[str, Any]:
+      """Prepare a sale transaction with proper address validation"""
+      try:
+          if self.demo_mode:
+              return {
+                  'to': seller_address,
+                  'data': f'0x{token_id:064x}',
+                  'value': hex(sale_price_wei),
+                  'gas': '0x5265c00',
+                  'gasPrice': hex(Web3.to_wei(30, 'gwei'))
+              }
+          
+          # Validate and convert addresses to checksum format
+          try:
+              buyer_address_checksum = Web3.to_checksum_address(buyer_address)
+              seller_address_checksum = Web3.to_checksum_address(seller_address)
+          except ValueError as e:
+              logger.error(f"Invalid Ethereum address: {e}")
+              raise ValueError(f"Invalid Ethereum address: {e}")
+          
+          # Get optimized gas prices
+          gas_prices = await self.get_current_gas_price()
+          
+          # Check buyer balance
+          balance = self.w3.eth.get_balance(buyer_address_checksum)
+          
+          # Estimate gas properly for the transaction
+          try:
+              gas_estimate = self.w3.eth.estimate_gas({
+                  'from': buyer_address_checksum,
+                  'to': seller_address_checksum,
+                  'value': sale_price_wei,
+                  'data': f'0x{token_id:064x}'
+              })
+              estimated_gas = int(gas_estimate * 1.2)  # Add 20% buffer
+          except Exception as gas_error:
+              logger.warning(f"Gas estimation failed, using safe default: {gas_error}")
+              estimated_gas = 50000
+          
+          # Calculate required balance
+          if 'maxFeePerGas' in gas_prices:
+              required_balance = sale_price_wei + (gas_prices['maxFeePerGas'] * estimated_gas)
+          else:
+              required_balance = sale_price_wei + (gas_prices['gasPrice'] * estimated_gas)
+          
+          if balance < required_balance:
+              raise ValueError(
+                  f"Insufficient funds. Need {Web3.from_wei(required_balance, 'ether')} ETH, "
+                  f"but only have {Web3.from_wei(balance, 'ether')} ETH"
+              )
+          
+          # Prepare base transaction parameters
+          base_params = {
+              'from': buyer_address_checksum,
+              'to': seller_address_checksum,
+              'value': sale_price_wei,
+              'gas': estimated_gas,
+              'nonce': self.w3.eth.get_transaction_count(buyer_address_checksum),
+              'data': f'0x{token_id:064x}'
+          }
+          
+          # Add gas pricing
+          base_params.update(gas_prices)
+          
+          # Return transaction data with properly formatted addresses
+          result = {
+              'to': base_params['to'],
+              'value': hex(base_params['value']),
+              'gas': hex(base_params['gas']),
+              'data': base_params['data'],
+              'nonce': hex(base_params['nonce'])
+          }
+          
+          # Add gas pricing fields
+          if 'maxFeePerGas' in gas_prices:
+              result.update({
+                  'maxFeePerGas': hex(gas_prices['maxFeePerGas']),
+                  'maxPriorityFeePerGas': hex(gas_prices['maxPriorityFeePerGas'])
+              })
+          else:
+              result['gasPrice'] = hex(gas_prices['gasPrice'])
+          
+          logger.info(f"Prepared transaction: {result}")
+          return result
+          
+      except Exception as e:
+          logger.error(f"Sale transaction preparation failed: {e}")
+          raise
+
+    async def transfer_artwork_ownership(self, token_id: int, from_address: str, 
+                                      to_address: str) -> Dict[str, Any]:
+        """Prepare transaction to transfer artwork ownership"""
+        try:
+            if self.demo_mode:
+                # Mock ownership transfer
+                return {
+                    'to': settings.CONTRACT_ADDRESS,
+                    'data': '0x' + f'{token_id:064x}' + from_address[2:].lower().ljust(64, '0') + to_address[2:].lower().ljust(64, '0'),
+                    'value': '0x0',
+                    'gas': '0x493e0',  # 300000 in hex
+                    'gasPrice': hex(Web3.to_wei(30, 'gwei'))
+                }
+            
+            from_address_checksum = Web3.to_checksum_address(from_address)
+            to_address_checksum = Web3.to_checksum_address(to_address)
+            
+            # Get optimized gas prices
+            gas_prices = await self.get_current_gas_price()
+            
+            # Prepare base transaction parameters
+            base_params = {
+                'from': from_address_checksum,
+                'gas': 200000,  # Estimated gas for transfer
+                'nonce': self.w3.eth.get_transaction_count(from_address_checksum),
+            }
+            
+            # Add gas pricing
+            base_params.update(gas_prices)
+            
+            # Build the transfer transaction
+            tx = self.contract.functions.transferFrom(
+                from_address_checksum,
+                to_address_checksum,
+                token_id
+            ).build_transaction(base_params)
+            
+            # Return in expected format
+            result = {
+                'to': tx['to'],
+                'data': tx['data'],
+                'gas': hex(tx['gas']),
+                'value': '0x0',
+                'nonce': hex(tx['nonce'])
+            }
+            
+            # Add gas pricing fields
+            if 'maxFeePerGas' in gas_prices:
+                result.update({
+                    'maxFeePerGas': hex(gas_prices['maxFeePerGas']),
+                    'maxPriorityFeePerGas': hex(gas_prices['maxPriorityFeePerGas'])
+                })
+            else:
+                result['gasPrice'] = hex(gas_prices['gasPrice'])
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Ownership transfer preparation failed: {e}")
+            raise
+
+    async def simulate_sale_economics(self, token_id: int, sale_price_eth: float,
+                                    creator_address: str, current_owner: str) -> Dict[str, Any]:
+        """Simulate the economics of a sale transaction"""
+        try:
+            # Get artwork info
+            artwork_info = await self.get_artwork_info(token_id)
+            if not artwork_info:
+                raise ValueError(f"Artwork {token_id} not found")
+            
+            # Determine if primary or secondary sale
+            is_primary_sale = creator_address.lower() == current_owner.lower()
+            
+            # Calculate amounts - Use admin-controlled global platform fee
+            from app.api.v1.ticket import get_current_global_fee
+            platform_fee_percentage = await get_current_global_fee()
+            platform_fee_rate = platform_fee_percentage / 100  # Convert from percentage to decimal
+            
+            sale_price_wei = Web3.to_wei(sale_price_eth, 'ether')
+            platform_fee_wei = int(sale_price_wei * platform_fee_rate)
+            
+            royalty_wei = 0
+            if not is_primary_sale:
+                royalty_rate = artwork_info['royalty_percentage'] / 10000
+                royalty_wei = int(sale_price_wei * royalty_rate)
+            
+            seller_receives_wei = sale_price_wei - platform_fee_wei - royalty_wei
+            
+            return {
+                'sale_price_eth': sale_price_eth,
+                'sale_price_wei': str(sale_price_wei),
+                'platform_fee_wei': str(platform_fee_wei),
+                'platform_fee_eth': str(Web3.from_wei(platform_fee_wei, 'ether')),
+                'royalty_wei': str(royalty_wei),
+                'royalty_eth': str(Web3.from_wei(royalty_wei, 'ether')),
+                'seller_receives_wei': str(seller_receives_wei),
+                'seller_receives_eth': str(Web3.from_wei(seller_receives_wei, 'ether')),
+                'is_primary_sale': is_primary_sale,
+                'royalty_rate': artwork_info['royalty_percentage'] / 100,  # As percentage
+                'creator_address': creator_address,
+                'current_owner': current_owner
+            }
+            
+        except Exception as e:
+            logger.error(f"Sale simulation failed: {e}")
+            raise
+
+
+# Mock system for demo mode
+class MockArtworkSystem:
+    def __init__(self):
+        self.artworks = []
+        self.token_count = 0
+        self.licenses = []
+        self.license_counter = 0
+        self.accounts = [
+            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+            "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", 
+            "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+            "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
+        ]
+        self.balances = {
+            Web3.to_checksum_address(acc): Web3.to_wei(100, 'ether') for acc in self.accounts
+        }
+    
+    def register_artwork(self, owner: str, metadata: str, royalty: int) -> int:
+        owner = Web3.to_checksum_address(owner)
+        metadata = str(metadata)
+        royalty = int(royalty)
+
+        if royalty > 2000:
+            raise ValueError("Royalty cannot exceed 20%")
+
+        token_id = self.token_count
+        self.artworks.append({
+            'owner': owner,
+            'creator': owner,
+            'metadata': metadata,
+            'royalty': royalty,
+            'isLicensed': False,
+            'tokenURI': metadata
+        })
+        self.token_count += 1
+        return token_id
+
+    def get_artwork_info(self, token_id: int) -> Dict[str, Any]:
+        if token_id >= len(self.artworks):
+            raise ValueError("Nonexistent token")
+        art = self.artworks[token_id]
+        return {
+            "creator": art['creator'],
+            "metadata_uri": art['metadata'],
+            "royalty_percentage": art['royalty'],
+            "is_licensed": art['isLicensed']
+        }
+
+    def get_current_token_id(self) -> int:
+        return self.token_count
+
+    def owner_of(self, token_id: int) -> str:
+        if token_id >= len(self.artworks):
+            raise ValueError("Nonexistent token")
+        return self.artworks[token_id]['owner']
+
+    # services/web3_service.py
+async def update_platform_fee(self, new_fee_percentage: float, from_address: str):
+    """Update platform fee in smart contract"""
+    try:
+        # Convert percentage to basis points
+        new_fee_basis_points = int(new_fee_percentage * 100)
+        
+        # Validate
+        if new_fee_basis_points <= 0:
+            raise ValueError("Platform fee must be greater than 0")
+
+        # Optional warning for very high fees
+        if new_fee_basis_points > 10000:  # > 100%
+            logger.warning(f"⚠️ Very high platform fee: {new_fee_percentage}%")
+        
+        from_address = Web3.to_checksum_address(from_address)
+        
+        # Get gas prices
+        gas_prices = await self.get_current_gas_price()
+        
+        # Build transaction
+        base_params = {
+            'from': from_address,
+            'nonce': self.w3.eth.get_transaction_count(from_address),
+            'gas': 100000,  # Estimate for updatePlatformFee
+        }
+        base_params.update(gas_prices)
+        
+        # Build transaction
+        tx = self.contract.functions.updatePlatformFee(
+            new_fee_basis_points
+        ).build_transaction(base_params)
+        
+        return {
+            'to': tx['to'],
+            'data': tx['data'],
+            'gas': hex(tx['gas']),
+            'value': '0x0',
+            **gas_prices
+        }
+    except Exception as e:
+        logger.error(f"Error preparing platform fee update: {e}")
+        raise
+async def pause_contract(self):
+    """Pause the contract (only owner)"""
+    try:
+        if self.demo_mode:
+            return {"success": True, "message": "Demo mode - contract paused"}
+        
+        if not self.contract:
+            raise Exception("Contract not initialized")
+        
+        # Get owner account
+        owner_account = self.w3.eth.account.from_key(settings.PRIVATE_KEY)
+        
+        # Build transaction
+        function = self.contract.functions.pause()
+        tx = function.build_transaction({
+            'from': owner_account.address,
+            'nonce': self.w3.eth.get_transaction_count(owner_account.address),
+            'gas': 100000,
+            'gasPrice': self.w3.eth.gas_price
+        })
+        
+        # Sign and send
+        signed_tx = owner_account.sign_transaction(tx)
+        tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        
+        # Wait for confirmation
+        receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+        
+        return {
+            "success": True,
+            "tx_hash": tx_hash.hex(),
+            "message": "Contract paused successfully"
+        }
+    except Exception as e:
+        logger.error(f"Failed to pause contract: {e}")
+        raise
+      
+async def unpause_contract(self):
+    """Unpause the contract (only owner)"""
+    try:
+        if self.demo_mode:
+            return {"success": True, "message": "Demo mode - contract unpaused"}
+        
+        if not self.contract:
+            raise Exception("Contract not initialized")
+        
+        # Get owner account
+        owner_account = self.w3.eth.account.from_key(settings.PRIVATE_KEY)
+        
+        # Build transaction
+        function = self.contract.functions.unpause()
+        tx = function.build_transaction({
+            'from': owner_account.address,
+            'nonce': self.w3.eth.get_transaction_count(owner_account.address),
+            'gas': 100000,
+            'gasPrice': self.w3.eth.gas_price
+        })
+        
+        # Sign and send
+        signed_tx = owner_account.sign_transaction(tx)
+        tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        
+        # Wait for confirmation
+        receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+        
+        return {
+            "success": True,
+            "tx_hash": tx_hash.hex(),
+            "message": "Contract unpaused successfully"
+        }
+    except Exception as e:
+        logger.error(f"Failed to unpause contract: {e}")
+        raise
+class Web3ServiceProxy:
+    def __init__(self):
+        self._services = {}
+        # Eagerly pre-initialize WireFluid at server startup.
+        self._preload_networks()
+
+    def _preload_networks(self):
+        network = 'wirefluid'
+        try:
+            logger.info(f'Pre-initializing Web3Service for network: {network}')
+            self._services[network] = Web3Service(target_network=network)
+            logger.info(f'Web3Service ready for network: {network}')
+        except Exception as e:
+            logger.error(f'Failed to pre-initialize Web3Service for {network}: {e}')
+
+    def get_service(self, network_name=None):
+        target = 'wirefluid'
+        if target not in self._services:
+            logger.warning(f'Web3Service for {target} was not pre-loaded, creating now...')
+            self._services[target] = Web3Service(target_network=target)
+        return self._services[target]
+
+    def __getattr__(self, name):
+        service = self.get_service()
+        attr = getattr(service, name)
+
+        if callable(attr):
+            def wrapper(*args, **kwargs):
+                network = kwargs.pop('network', None)
+                target_service = self.get_service(network)
+                return getattr(target_service, name)(*args, **kwargs)
+            return wrapper
+        return attr
+
+# Global service instance - WireFluid pre-initialized at startup.
+web3_service = Web3ServiceProxy()
+

@@ -1,0 +1,23 @@
+{
+    "name": "artdrm-deployment",
+    "version": "1.0.0",
+    "description": "ArtDRM Smart Contract Deployment",
+    "scripts": {
+        "compile": "hardhat compile",
+        "deploy:wirefluid": "hardhat run scripts/deploy.js --network wirefluidTestnet",
+        "test": "hardhat test",
+        "test:verbose": "hardhat test --verbose",
+        "test:gas": "REPORT_GAS=true hardhat test"
+    },
+    "devDependencies": {
+        "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+        "@types/chai": "^4.3.5",
+        "chai": "^4.3.10",
+        "dotenv": "^16.3.1",
+        "hardhat": "^2.19.0",
+        "solidity-coverage": "^0.8.17"
+    },
+    "dependencies": {
+        "@openzeppelin/contracts": "^4.9.0"
+    }
+}

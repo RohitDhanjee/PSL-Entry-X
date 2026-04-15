@@ -1,0 +1,34 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+*.env
+
+# IDE
+.vscode/
+.idea/
+
+# Sensitive data
+.env
+secrets.json
+
+# Logs
+*.log
+*.env
+*.pyc
+__pycache__/
+*.pyo
+.envmb
+node_modules
+artifacts
+artworks.index
+id_map.npy
+cache
+coverage
+artworks.index
+id_map.npy
+coverage.json
+deployment-info.json
